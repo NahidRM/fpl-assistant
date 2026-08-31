@@ -1,4 +1,4 @@
-import { COMPONENTS } from './config.js';
+import { COMPONENTS, SHRINK_K } from './config.js';
 import { median } from './stats.js';
 import { expectedPoints, playerComponents, shrunkRates, attackQuality, defenceQuality } from './model.js';
 import { componentPercentiles, fixtureFactor, qualifiedPool, weightedScore } from './score.js';
@@ -6,7 +6,7 @@ import { componentPercentiles, fixtureFactor, qualifiedPool, weightedScore } fro
 const RATE_KEYS = ['xg90', 'xa90', 'xgc90', 'dc90', 'saves90'];
 
 /** Build the ranked board for one position from a players.json payload. */
-export function buildBoard(payload, position, weights, horizon) {
+export function buildBoard(payload, position, weights, horizon, k = SHRINK_K) {
   const players = payload.players.filter((p) => p.position === position);
   if (!players.length) return [];
 
@@ -24,9 +24,10 @@ export function buildBoard(payload, position, weights, horizon) {
       teamMatches,
       medians,
       fixtureFactor: fixtureFactor(payload.fixtures, player.team, horizon),
+      k,
     };
     const components = playerComponents(player, ctx);
-    const rates = shrunkRates(player, medians);
+    const rates = shrunkRates(player, medians, k);
     const quality = attackQuality(rates, position) + defenceQuality(rates, position);
     const bonusPerMatch = teamMatches > 0 ? player.bonus / teamMatches : 0;
 

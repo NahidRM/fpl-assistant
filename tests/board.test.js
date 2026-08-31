@@ -40,3 +40,18 @@ test('players ruled out score zero on minutes', () => {
     assert.equal(row.expectedMinutes, 0, `${row.name} should have zero expected minutes`);
   }
 });
+
+test('the shrinkage slider actually changes the board', () => {
+  // D14 exposes K as a control so its effect is visible. A dead slider is worse
+  // than no slider: index.html had one that app.js never wired.
+  const low = buildBoard(payload, MID, DEFAULT_WEIGHTS[MID], DEFAULT_HORIZON, 50);
+  const high = buildBoard(payload, MID, DEFAULT_WEIGHTS[MID], DEFAULT_HORIZON, 1600);
+  assert.notDeepEqual(low.map((r) => r.id), high.map((r) => r.id),
+    'changing K must reorder the board, otherwise the control is decorative');
+});
+
+test('buildBoard defaults to the configured K when none is passed', () => {
+  const explicit = buildBoard(payload, MID, DEFAULT_WEIGHTS[MID], DEFAULT_HORIZON, 400);
+  const implicit = buildBoard(payload, MID, DEFAULT_WEIGHTS[MID], DEFAULT_HORIZON);
+  assert.deepEqual(implicit.map((r) => r.id), explicit.map((r) => r.id));
+});

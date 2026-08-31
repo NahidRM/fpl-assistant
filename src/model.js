@@ -68,7 +68,7 @@ export function expectedPoints(quality, expMinutes, bonusPerMatch) {
  * A missing or non-finite median is no prior at all, so shrinking toward it is a
  * no-op on the player's own rate rather than a NaN that would poison the board.
  */
-export function shrunkRates(player, medians) {
+export function shrunkRates(player, medians, k = SHRINK_K) {
   const out = {};
   for (const key of ['xg90', 'xa90', 'xgc90', 'dc90', 'saves90']) {
     const prior = medians?.[key];
@@ -77,14 +77,14 @@ export function shrunkRates(player, medians) {
       // board; falling back silently would disable that safeguard invisibly.
       throw new Error(`shrunkRates: missing median for "${key}"`);
     }
-    out[key] = shrink(player[key], player.minutes, prior, SHRINK_K);
+    out[key] = shrink(player[key], player.minutes, prior, k);
   }
   return out;
 }
 
 /** The six slider components for one player. */
 export function playerComponents(player, ctx) {
-  const rates = shrunkRates(player, ctx.medians);
+  const rates = shrunkRates(player, ctx.medians, ctx.k ?? SHRINK_K);
   return {
     attack: attackQuality(rates, player.position),
     defence: defenceQuality(rates, player.position),

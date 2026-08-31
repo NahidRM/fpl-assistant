@@ -29,7 +29,7 @@ function badges(row) {
     const cls = row.chance_of_playing === null ? 'out' : 'doubt';
     out += ` <span class="badge ${cls}" title="${escapeHtml(row.news || '')}">${label}</span>`;
   }
-  if (row.isOutlier) out += ' <span class="badge outlier" title="More than 2 SD above the position field">outlier</span>';
+  if (row.isOutlier) out += ' <span class="badge outlier" title="More than 3 SD above the position field">outlier</span>';
   return out;
 }
 

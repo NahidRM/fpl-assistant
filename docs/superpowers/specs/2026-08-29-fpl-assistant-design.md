@@ -430,7 +430,15 @@ filter toggles: hide unavailable, minutes threshold, team, price range.
 Each row shows the weighted score, a **projected points** column giving raw xP over the
 selected horizon as a sanity check against the weighted ranking, the raw values feeding the
 score, minutes and `p_start`, an availability badge from `status`/`news`, and an **outlier
-badge** for any player more than 2 SD above their position field. Showing raw values beside the score is deliberate: percentile discards
+badge** for any player more than **3 SD** above their position field, measured over players who
+actually feature.
+
+3 SD, not 2, and excluding non-players: measured on the live board, 2 SD across all midfielders
+flagged 16 of 231 — most of the visible top of the table — because xP is right-skewed rather than
+normal. A badge that marks most of the board tells you nothing. At 3 SD it flags 1 goalkeeper,
+1 defender, 2 midfielders and no forwards.
+
+Showing raw values beside the score is deliberate: percentile discards
 magnitude, so the magnitude has to remain visible for a genuine outlier to be recognisable.
 
 A banner shows the last-updated timestamp and, until roughly GW6, the sample-size

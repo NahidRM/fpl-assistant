@@ -1184,7 +1184,7 @@ function badges(row) {
     const cls = row.chance_of_playing === null ? 'out' : 'doubt';
     out += ` <span class="badge ${cls}" title="${escapeHtml(row.news || '')}">${label}</span>`;
   }
-  if (row.isOutlier) out += ' <span class="badge outlier" title="More than 2 SD above the position field">outlier</span>';
+  if (row.isOutlier) out += ' <span class="badge outlier" title="More than 3 SD above the position field">outlier</span>';
   return out;
 }
 
@@ -1322,9 +1322,12 @@ function visibleRows() {
   const teams = new Map(state.payload.teams.map((t) => [t.id, t.short_name]));
   const matches = state.payload.team_matches_played || {};
 
-  const scores = board.map((r) => r.xp);
-  const mean = scores.reduce((a, b) => a + b, 0) / (scores.length || 1);
-  const sd = Math.sqrt(scores.reduce((a, b) => a + (b - mean) ** 2, 0) / (scores.length || 1));
+  // Outliers are measured against players who actually feature, at 3 SD not 2.
+  // Measured on live data: xP is right-skewed, so 2 SD flagged 16 of 231 midfielders —
+  // most of the visible board — which makes the badge meaningless. 3 SD flags 0-2.
+  const playing = board.filter((r) => r.expectedMinutes > 0).map((r) => r.xp);
+  const mean = playing.reduce((a, b) => a + b, 0) / (playing.length || 1);
+  const sd = Math.sqrt(playing.reduce((a, b) => a + (b - mean) ** 2, 0) / (playing.length || 1));
 
   return board
     .map((row) => {
@@ -1334,7 +1337,7 @@ function visibleRows() {
         teamName: teams.get(row.team) ?? '?',
         valuePerMillion: row.xp / row.price,
         baseline: baselinePoints(row, teamMatches),
-        isOutlier: sd > 0 && row.xp > mean + 2 * sd,
+        isOutlier: sd > 0 && row.xp > mean + 3 * sd,
       };
     })
     .filter((row) => {
