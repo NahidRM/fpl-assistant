@@ -538,7 +538,7 @@ Minutes security; expected points multiplies quality by minutes afterwards.
 Append to `tests/model.test.js`:
 
 ```javascript
-import { attackQuality, defenceQuality, setPieceScore, expectedPoints, playerComponents } from '../src/model.js';
+import { attackQuality, defenceQuality, setPieceScore, expectedPoints, playerComponents, shrunkRates } from '../src/model.js';
 import { GK, DEF, MID, FWD } from '../src/config.js';
 
 const rates = { xg90: 0.2, xa90: 0.3, xgc90: 1.2, dc90: 9.0, saves90: 0.0 };
@@ -612,12 +612,22 @@ test('expectedPoints is zero-ish for a player expected not to feature', () => {
 test('playerComponents returns every component key', () => {
   const player = { ...rates, position: DEF, minutes: 180, status: 'a', chance_of_playing: null,
                    form: 4.0, penalties_order: null, direct_freekicks_order: null, corners_order: null };
-  const ctx = { teamMatches: 2, medians: { minutes: 90 }, fixtureFactor: 1.5 };
+  const medians = { xg90: 0.1, xa90: 0.15, xgc90: 1.4, dc90: 7.4, saves90: 0, minutes: 90 };
+  const ctx = { teamMatches: 2, medians, fixtureFactor: 1.5 };
   const c = playerComponents(player, ctx);
   for (const key of ['attack', 'defence', 'minutes', 'fixture', 'form', 'setPieces']) {
     assert.ok(key in c, `missing ${key}`);
     assert.ok(Number.isFinite(c[key]), `${key} is not finite: ${c[key]}`);
   }
+});
+
+test('shrunkRates throws rather than silently skipping shrinkage', () => {
+  // Shrinkage is the safeguard against small-sample outliers. If a median goes
+  // missing it must fail loudly, not quietly rank a one-minute player at the top.
+  assert.throws(
+    () => shrunkRates({ ...rates, minutes: 1 }, { minutes: 90 }),
+    /missing median/,
+  );
 });
 ```
 
@@ -674,7 +684,13 @@ export function expectedPoints(quality, expMinutes, bonusPerMatch) {
 export function shrunkRates(player, medians) {
   const out = {};
   for (const key of ['xg90', 'xa90', 'xgc90', 'dc90', 'saves90']) {
-    out[key] = shrink(player[key], player.minutes, medians[key], SHRINK_K);
+    const prior = medians?.[key];
+    if (!Number.isFinite(prior)) {
+      // Deliberately loud. Shrinkage is what stops a one-minute player topping the
+      // board; falling back silently would disable that safeguard invisibly.
+      throw new Error(`shrunkRates: missing median for "${key}"`);
+    }
+    out[key] = shrink(player[key], player.minutes, prior, SHRINK_K);
   }
   return out;
 }
@@ -696,7 +712,7 @@ export function playerComponents(player, ctx) {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `npm test`
-Expected: PASS, 21 model tests passing
+Expected: PASS, 22 model tests passing (40 in total with stats)
 
 - [ ] **Step 5: Commit**
 

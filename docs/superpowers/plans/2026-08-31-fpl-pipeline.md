@@ -763,7 +763,7 @@ def compute_window(current, history, gameweeks):
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `python3 -m pytest scripts/tests/test_snapshot.py -v`
-Expected: PASS, 7 passed
+Expected: PASS, 8 passed
 
 - [ ] **Step 5: Commit**
 
@@ -1065,7 +1065,7 @@ Expected: PASS, 5 passed
 - [ ] **Step 5: Run the full suite**
 
 Run: `python3 -m pytest -v`
-Expected: PASS, 34 passed
+Expected: PASS, 35 passed
 
 - [ ] **Step 6: Run the pipeline against the live API**
 
@@ -1211,7 +1211,7 @@ git commit -m "docs: add README with honest limitations section"
 
 ## Done when
 
-- [ ] `python3 -m pytest` passes with 34 tests
+- [ ] `python3 -m pytest` passes with 35 tests
 - [ ] `python3 scripts/refresh.py` writes `data/players.json` and `data/snapshots/gw{N}.json`
 - [ ] `data/players.json` matches the contract at the top of this plan
 - [ ] The Action runs green from the Actions tab and commits refreshed data
