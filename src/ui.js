@@ -156,6 +156,7 @@ export function renderTable(head, body, rows, sortKey, onSort,
 
   for (const row of rows) {
     const tr = document.createElement('tr');
+    tr.style.setProperty('--score', row.score);   // drives the CSS score-bar fill
     for (const column of COLUMNS) {
       const td = document.createElement('td');
       td.innerHTML = column.format(row);
