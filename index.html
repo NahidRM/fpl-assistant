@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FPL Assistant</title>
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <header>
+    <h1>FPL Assistant</h1>
+    <p id="status-banner" class="banner" role="status">Loading…</p>
+  </header>
+
+  <nav id="tabs" class="tabs" role="tablist"></nav>
+
+  <main>
+    <section id="controls" class="controls">
+      <div id="weights" class="weights"></div>
+      <div class="filters">
+        <label>Horizon <select id="horizon"></select></label>
+        <label>Timeframe <select id="timeframe"></select></label>
+        <label><input type="checkbox" id="hide-unavailable" checked> Hide unavailable</label>
+        <label>Min minutes <input type="range" id="min-minutes" min="0" max="90" value="0"> <span id="min-minutes-value">0</span></label>
+        <label>Max price <input type="range" id="max-price" min="38" max="150" value="150"> <span id="max-price-value">15.0</span></label>
+        <button id="reset-weights" type="button">Reset weights</button>
+      </div>
+      <details class="advanced">
+        <summary>Advanced</summary>
+        <label>Shrinkage K <input type="range" id="shrink-k" min="50" max="1600" step="50" value="400"> <span id="shrink-k-value">400</span></label>
+        <p class="note">K is a scepticism dial, not a fitted value. Higher K trusts small samples less.</p>
+      </details>
+    </section>
+
+    <table id="board">
+      <thead id="board-head"></thead>
+      <tbody id="board-body"></tbody>
+    </table>
+  </main>
+
+  <footer>
+    <p id="footer-note"></p>
+  </footer>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
