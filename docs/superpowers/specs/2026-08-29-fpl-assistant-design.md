@@ -66,6 +66,7 @@ Verified against the live FPL API on 2026-08-29:
 | D25 | Value is a **display toggle**, not a weighted slider | `xP/£m` correlated 0.94 with Minutes; it is a composite, not a signal (§13.2) |
 | D26 | Clean-sheet probability carries a calibration constant | Measured −9% biased low on 240 players across 2025/26 (§13.3) |
 | D27 | DefCon uses a **negative binomial**, not Poisson | Defensive actions are overdispersed (var/mean 2.24); Poisson understated MID by half (§13.7) |
+| D28 | Goalkeepers have no DefCon term at all | Verified: every GK has defensive_contribution of exactly 0 (6.3) |
 
 ### Rejected
 
@@ -224,12 +225,21 @@ xP = 2 * p_start                                    # appearance points
    + bonus_per_match                                # smoothed observed bonus
 ```
 
-| Position | goal_pts | cs_pts | DefCon threshold T |
-|---|---|---|---|
-| GK | 6 | 4 | 10 |
-| DEF | 6 | 4 | 10 |
-| MID | 5 | 1 | 12 |
-| FWD | 4 | 0 | 12 |
+| Position | goal_pts | cs_pts | DefCon threshold T | NB dispersion r |
+|---|---|---|---|---|
+| GK | 6 | 4 | **n/a** | – |
+| DEF | 6 | 4 | 10 | 5.79 |
+| MID | 5 | 1 | 12 | 10.21 |
+| FWD | 4 | 0 | 12 | Poisson (see below) |
+
+**Goalkeepers have no DefCon term (D28).** Verified against live data: every goalkeeper has
+`defensive_contribution` of exactly 0 — mean 0.00, max 0.00, and zero in every per-match row.
+FPL does not award DefCon to keepers. An earlier draft gave them T = 10, which was harmless
+in arithmetic (lambda was always 0) but wrong as a description of the game.
+
+**Forwards keep Poisson.** Their measured variance-to-mean ratio was 0.93 — slightly *under*
+dispersed, so the negative binomial has nothing to correct. Their DefCon contribution is
+negligible in any case: mean 4.38 actions per 90 against a threshold of 12.
 
 Clean-sheet points require 60 minutes played, which is why that term is multiplied by
 `p_start` rather than by `f`.
