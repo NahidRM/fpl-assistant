@@ -1,5 +1,7 @@
 # FPL Assistant
 
+**Live:** https://nahidrm.github.io/fpl-assistant/
+
 A personal Fantasy Premier League player-ranking board. Static site on GitHub Pages,
 refreshed by a manually-triggered GitHub Action. No backend, no database, no paid APIs.
 
