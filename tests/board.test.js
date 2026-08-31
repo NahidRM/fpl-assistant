@@ -55,3 +55,43 @@ test('buildBoard defaults to the configured K when none is passed', () => {
   const implicit = buildBoard(payload, MID, DEFAULT_WEIGHTS[MID], DEFAULT_HORIZON);
   assert.deepEqual(implicit.map((r) => r.id), explicit.map((r) => r.id));
 });
+
+// --- survivor 4: percentiles over pool not all rows ---
+// buildBoard computes percentiles over the qualified pool (spec §6.8), not all rows.
+// The mutant `const poolRows = rows` includes every player regardless of minutes.
+// Effect: out-of-pool players drag percentile curves down, inflating scores for
+// high-quality players who feature and deflating scores for the pool itself.
+//
+// Contract to pin: a player NOT in the pool must receive the fallback percentile
+// (0 for every component), not a percentile derived from their own raw components.
+test('out-of-pool players receive the fallback percentile, not their raw component rank', () => {
+  // The qualified pool is the top-30 MIDs by minutes in the sample fixture.
+  // Nelson (id:24, 0 mins) is outside the top-30 and must get the fallback (all-zero) percentiles.
+  // If the mutant sets poolRows = rows (all rows), Nelson gets a real non-zero percentile.
+  const board = buildBoard(payload, MID, DEFAULT_WEIGHTS[MID], DEFAULT_HORIZON);
+  const nelson = board.find((r) => r.id === 24);
+  assert.ok(nelson, 'Nelson (id:24) must be in the MID board (he is in the sample fixture)');
+
+  const allZero = Object.values(nelson.percentiles).every((v) => v === 0);
+  assert.ok(allZero,
+    `Nelson (non-pool) should have all-zero percentiles. Got: ${JSON.stringify(nelson.percentiles)}`);
+});
+
+// --- survivor 5: K changes xP, not just ordering ---
+// The existing K test checks that K=50 vs K=1600 reorders the board.
+// But if K is only used in shrunkRates for scoring yet the xp column ignores K,
+// the ordering can still change (via score) while xp is wrong.
+// Pin: xP for a player with very few minutes must differ between extreme K values.
+test('changing K changes xP for a low-minutes player, not just board ordering', () => {
+  const low  = buildBoard(payload, MID, DEFAULT_WEIGHTS[MID], DEFAULT_HORIZON, 50);
+  const high = buildBoard(payload, MID, DEFAULT_WEIGHTS[MID], DEFAULT_HORIZON, 1600);
+  // Saka has 67 minutes — shrinkage toward the median is strongest for low-minute players.
+  const sakaLow  = low.find((r) => r.name === 'Saka');
+  const sakaHigh = high.find((r) => r.name === 'Saka');
+  assert.ok(sakaLow && sakaHigh, 'Saka must appear in both boards');
+  // xP = 2*p60 + quality*minutesFactor + bonus.  The quality term uses shrunkRates,
+  // which is K-sensitive for low-minutes players. If K is ignored in shrunkRates the
+  // quality term is the same regardless of K, so xP would be identical.
+  assert.notEqual(sakaLow.xp.toFixed(6), sakaHigh.xp.toFixed(6),
+    'xP must change with K for a low-minutes player; if it does not, K is ignored in the xP calculation');
+});

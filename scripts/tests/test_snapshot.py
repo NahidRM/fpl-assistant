@@ -74,3 +74,46 @@ def test_player_absent_from_baseline_treated_as_zero():
 def test_window_is_none_safe_when_current_gameweek_unknown():
     current = _snapshot(None, {"1": {"minutes": 0, "total_points": 0, "bonus": 0, "team": 1}})
     assert compute_window(current, {1: _snapshot(1, {})}, 2) == {}
+
+
+# --- survivor 6: negative window spans clamped to zero ---
+# compute_window uses max(span, 0).  Without the clamp, a player whose team played
+# fewer matches in the "current" snapshot than in the baseline (can't happen in
+# normal usage, but can happen with corrupted snapshots or test data) would produce
+# a negative `matches` value, which downstream code treats as NaN-like.
+def test_window_span_is_clamped_to_zero_not_negative():
+    """span = current_matches - baseline_matches must never be negative."""
+    current = _snapshot(5, {"1": {"minutes": 90, "total_points": 6, "bonus": 1, "team": 1}},
+                        team_matches={"1": 1})  # fewer team matches than baseline
+    history = {3: _snapshot(3, {"1": {"minutes": 90, "total_points": 6, "bonus": 1, "team": 1}},
+                            team_matches={"1": 3})}
+    out = compute_window(current, history, 2)
+    assert out["1"]["matches"] >= 0, (
+        f"matches span must be >= 0, got {out['1']['matches']}. "
+        "Negative spans indicate a corrupted snapshot pair and should be clamped."
+    )
+
+
+# --- survivor 7: window baseline picks latest snapshot AT OR BEFORE the target GW ---
+# target = current_gameweek - window_size.  The baseline must be the most recent
+# snapshot whose gameweek <= target — not just the most recent snapshot overall.
+# Without the `gw <= target` filter, a snapshot at GW4 could be used as the baseline
+# for a GW3-window computation, giving a negative or zero delta.
+def test_window_uses_latest_snapshot_at_or_before_target_not_just_latest():
+    """With GWs 3 and 5 in history and current=7, a 2-GW window targets GW5.
+    The baseline should be GW5, not GW3 (the oldest), giving the 2-GW delta."""
+    current = _snapshot(7, {"1": {"minutes": 630, "total_points": 42, "bonus": 9, "team": 1}},
+                        team_matches={"1": 7})
+    history = {
+        3: _snapshot(3, {"1": {"minutes": 270, "total_points": 18, "bonus": 3, "team": 1}},
+                    team_matches={"1": 3}),
+        5: _snapshot(5, {"1": {"minutes": 450, "total_points": 30, "bonus": 6, "team": 1}},
+                    team_matches={"1": 5}),
+    }
+    out = compute_window(current, history, 2)  # target = 7 - 2 = 5 → baseline = GW5
+    # Correct: 630-450=180 minutes, 42-30=12 points, 9-6=3 bonus, 7-5=2 matches.
+    assert out["1"]["minutes"] == 180, (
+        f"2-GW window from GW7 should use GW5 as baseline, giving 180 mins delta. "
+        f"Got {out['1']['minutes']} (GW3 would give 360, wrong baseline)."
+    )
+    assert out["1"]["matches"] == 2

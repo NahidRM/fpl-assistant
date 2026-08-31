@@ -134,3 +134,59 @@ test('shrunkRates throws rather than silently skipping shrinkage', () => {
     /missing median/,
   );
 });
+
+// --- survivor 2: CS_CALIBRATION ---
+// The existing clean-sheet tests only check direction (tight > leaky), not that
+// calibration is applied.  Removing CS_CALIBRATION (setting it to 1.0) shifts the
+// GK/DEF clean-sheet probability but the direction tests still pass.
+import { CS_CALIBRATION, CS_POINTS, GK as GK2, DEF as DEF2 } from '../src/config.js';
+
+test('defenceQuality applies CS_CALIBRATION — removing it changes the result by >1%', () => {
+  // For a MID: no conceded penalty, no saves — defenceQuality is almost entirely the CS term.
+  // CS_CALIBRATION = 0.93 means exp(-xgc * 0.93) > exp(-xgc * 1.0) — less discounting of
+  // clean-sheet probability.  The calibration was fitted to correct a measured -9% bias.
+  const r = { xg90: 0, xa90: 0, xgc90: 1.2, dc90: 0, saves90: 0 };
+
+  // Compute the full defenceQuality with CS_CALIBRATION applied (the actual function).
+  const calibrated = defenceQuality(r, MID);  // MID: no conceded penalty, no saves
+
+  // Compute what defenceQuality would be with calibration set to 1.0 (no bias correction).
+  // MID CS_POINTS = 1, no conceded, no saves, no DefCon (dc90=0).
+  const uncalibrated = Math.exp(-1.2 * 1.0) * CS_POINTS[MID];
+
+  // With 0.93 < 1.0: less negative exponent → higher CS probability → calibrated > uncalibrated.
+  assert.ok(calibrated > uncalibrated,
+    `CS_CALIBRATION (0.93) should raise the clean-sheet probability vs no calibration. ` +
+    `got calibrated=${calibrated.toFixed(4)}, uncalibrated=${uncalibrated.toFixed(4)}`);
+
+  // The difference must be meaningful (>2%) — a trivial delta suggests calibration isn't applied.
+  assert.ok(calibrated - uncalibrated > 0.02,
+    `CS_CALIBRATION difference should exceed 0.02. Got: ${(calibrated - uncalibrated).toFixed(4)}`);
+});
+
+// --- survivor 3: conceded penalty sign ---
+// The existing test only checks that tight > leaky for defenders (direction).
+// Flipping the sign of the conceded term makes high xgc90 *add* points instead
+// of subtracting — but the direction tight > leaky still holds because the
+// clean-sheet term dominates.  Pin the sign explicitly.
+test('defenceQuality conceded deduction is negative for defenders — higher xgc means lower quality', () => {
+  // Hold everything constant, vary only xgc90.
+  // The delta between xgc90=0 and xgc90=1 must come from clean sheet AND conceded.
+  // With correct sign: delta = (exp(0)-exp(-0.93))*cs_pts - (1/2 - 0)/2  (both terms reduce quality)
+  // With flipped sign: delta = same clean-sheet drop PLUS a +0.5 "bonus" for conceding more.
+  const base = defenceQuality({ xg90: 0, xa90: 0, xgc90: 0,   dc90: 0, saves90: 0 }, DEF2);
+  const one  = defenceQuality({ xg90: 0, xa90: 0, xgc90: 1.0, dc90: 0, saves90: 0 }, DEF2);
+  const two  = defenceQuality({ xg90: 0, xa90: 0, xgc90: 2.0, dc90: 0, saves90: 0 }, DEF2);
+  // The conceded penalty (xgc90/2) means each unit of xgc subtracts at least 0.5 pts
+  // beyond the clean-sheet drop.  So the second unit must subtract more than the first.
+  // With a flipped sign the second unit would ADD 0.5, making two > one in conceded penalty.
+  const drop1 = base - one;   // quality drop from 0 to 1 xgc90
+  const drop2 = one - two;    // quality drop from 1 to 2 xgc90
+  assert.ok(drop1 > 0, 'increasing xgc90 from 0→1 must reduce defender quality');
+  assert.ok(drop2 > 0, 'increasing xgc90 from 1→2 must further reduce defender quality');
+  // With the correct sign both drops include the conceded penalty (0.5 pts per unit).
+  // With a flipped sign, the second drop is smaller because the clean-sheet effect
+  // diminishes while the "bonus" from conceding grows.  Pin: drop2 >= 0.4.
+  assert.ok(drop2 >= 0.4,
+    `Each extra goal conceded should reduce quality by ≥0.4 (clean sheet + penalty). Got ${drop2.toFixed(4)}`);
+});

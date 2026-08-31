@@ -96,3 +96,20 @@ test('percentileRanks gives every value the same rank when all are identical', (
   close(p[0], p[1]);
   close(p[1], p[2]);
 });
+
+// --- survivor 1: percentile tie-averaging ---
+// The old test only checked that tied values share a rank, not that the rank is
+// the *average* of their positions.  Dropping the average and using j instead of
+// (i+j)/2 still gives ties the same rank — just the wrong one.
+test('percentileRanks tie rank is the average of the spanned positions, not just equal', () => {
+  // [5, 5, 5, 9]: three tied values at positions 0,1,2.  averageRank = (0+2)/2 = 1.
+  // Normalised over 3 gaps (n-1=3): rank = 1/3 ≈ 0.333.
+  // If the mutant uses j=2 instead: rank = 2/3 ≈ 0.667 — wrong.
+  const p = percentileRanks([5, 5, 5, 9]);
+  const expected = 1 / 3;  // averageRank(0,1,2) / (4-1)
+  const tol = 1e-9;
+  assert.ok(Math.abs(p[0] - expected) < tol,
+    `tied rank should be ${expected} (average of positions 0-2), got ${p[0]}`);
+  assert.ok(Math.abs(p[1] - expected) < tol);
+  assert.ok(Math.abs(p[2] - expected) < tol);
+});

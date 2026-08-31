@@ -1,0 +1,35 @@
+name: Tests
+
+# No user-controlled inputs reach any `run:` command in this workflow.
+# Commands are: python3 -m pytest -q  and  node --test  — both static strings.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    name: Python (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run pytest
+        run: python3 -m pytest -q
+
+  javascript:
+    name: JavaScript (node:test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"   # LTS; node:test stable, no npm install needed
+
+      - name: Run node:test
+        run: node --test
