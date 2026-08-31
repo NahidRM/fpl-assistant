@@ -938,10 +938,14 @@ test('changing weights changes the ordering', () => {
     'sliders must actually change the board');
 });
 
-test('unavailable players score zero on minutes', () => {
+test('players ruled out score zero on minutes', () => {
   const board = buildBoard(payload, DEF, DEFAULT_WEIGHTS[DEF], DEFAULT_HORIZON);
-  const injured = board.filter((r) => r.status !== 'a' && r.chance_of_playing === null);
-  for (const row of injured) {
+  const ruledOut = board.filter((r) => r.chance_of_playing === 0);
+  // Guard: without this the test passes vacuously if the fixture has no such player.
+  // Real payloads set chance_of_playing to 0/25/50/75 for unavailable players, never null,
+  // so filtering on `chance_of_playing === null` matched nothing and proved nothing.
+  assert.ok(ruledOut.length > 0, 'fixture must contain at least one ruled-out player');
+  for (const row of ruledOut) {
     assert.equal(row.expectedMinutes, 0, `${row.name} should have zero expected minutes`);
   }
 });
@@ -1157,8 +1161,10 @@ const LABELS = {
 };
 
 const COLUMNS = [
-  { key: 'name', label: 'Player', format: (r) => r.name + badges(r) },
-  { key: 'teamName', label: 'Team', format: (r) => r.teamName },
+  // name and teamName come from the same untrusted API payload as news, so they
+  // are escaped too. Numeric columns are safe: toFixed/String cannot emit markup.
+  { key: 'name', label: 'Player', format: (r) => escapeHtml(r.name) + badges(r) },
+  { key: 'teamName', label: 'Team', format: (r) => escapeHtml(r.teamName) },
   { key: 'price', label: 'Price', format: (r) => r.price.toFixed(1) },
   { key: 'score', label: 'Score', format: (r) => r.score.toFixed(3) },
   { key: 'xp', label: 'xP/match', format: (r) => r.xp.toFixed(2) },
