@@ -19,7 +19,10 @@
 
   <main>
     <section id="controls" class="controls">
-      <div id="weights" class="weights"></div>
+      <details class="weights-panel">
+        <summary>Adjust weights</summary>
+        <div id="weights" class="weights"></div>
+      </details>
       <div class="filters">
         <label>Horizon <select id="horizon"></select></label>
         <label>Timeframe <select id="timeframe"></select></label>
@@ -30,7 +33,9 @@
       </div>
       <details class="advanced">
         <summary>Advanced</summary>
-        <label>Shrinkage K <input type="range" id="shrink-k" min="50" max="1600" step="50" value="400"> <span id="shrink-k-value">400</span></label>
+        <div class="filters">
+          <label>Shrinkage K <input type="range" id="shrink-k" min="50" max="1600" step="50" value="400"> <span id="shrink-k-value">400</span></label>
+        </div>
         <p class="note">K is a scepticism dial, not a fitted value. Higher K trusts small samples less.</p>
       </details>
     </section>
@@ -39,6 +44,144 @@
       <thead id="board-head"></thead>
       <tbody id="board-body"></tbody>
     </table>
+
+    <!-- ── GUIDE ──────────────────────────────────────────────────── -->
+    <section id="guide-panel" hidden>
+      <article class="guide">
+
+        <div class="guide-intro">
+          <p>FPL Assistant ranks every Premier League player to help you pick the best squad for Fantasy Premier League. It uses expected goals, clean sheet probability, fixture difficulty, and other signals to score each player within their position.</p>
+        </div>
+
+        <section class="guide-section">
+          <h2>The Score column</h2>
+          <p>The Score column is the main output. Higher is better.</p>
+          <p>The score is a number between 0 and 1. It is a <strong>percentile rank</strong> — it shows where a player sits compared to everyone else in the same position. A score of 0.9 means the player is in the top 10% for their position. A score of 0.5 means they are average.</p>
+          <div class="guide-callout">
+            <strong>Important:</strong> scores are not comparable across positions. A midfielder with 0.85 and a defender with 0.85 are both good for their position — but you cannot say one is better than the other.
+          </div>
+        </section>
+
+        <section class="guide-section">
+          <h2>Position tabs</h2>
+          <p>Use the tabs at the top to switch between positions. Each tab has its own score ranking with different default weights.</p>
+          <table class="guide-table">
+            <thead><tr><th>Tab</th><th>Default focus</th></tr></thead>
+            <tbody>
+              <tr><td>Goalkeepers</td><td>Clean sheets, saves, fixture difficulty</td></tr>
+              <tr><td>Defenders</td><td>Clean sheets, defensive actions, set pieces</td></tr>
+              <tr><td>Midfielders</td><td>Goals, assists, form, fixture difficulty</td></tr>
+              <tr><td>Forwards</td><td>Goals, assists, form, fixture difficulty</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="guide-section">
+          <h2>Table columns</h2>
+          <table class="guide-table">
+            <thead><tr><th>Column</th><th>What it means</th></tr></thead>
+            <tbody>
+              <tr><td>Score</td><td>Percentile rank (0–1). The main column. Higher = better.</td></tr>
+              <tr><td>xP/match</td><td>Expected FPL points in a single game, based on recent rates and upcoming fixtures.</td></tr>
+              <tr><td>xP per £m</td><td>Value for money. xP/match divided by price. Use this to find cheap options.</td></tr>
+              <tr><td>Exp mins</td><td>Expected minutes per game. Accounts for injury risk and rotation. Shrunk toward the typical value for their position.</td></tr>
+              <tr><td>Mins</td><td>Total minutes played this season.</td></tr>
+              <tr><td>Form</td><td>Official FPL form — points scored over the last few gameweeks.</td></tr>
+              <tr><td>xGI/90</td><td>Expected goals and assists combined, per 90 minutes. A measure of attacking output.</td></tr>
+              <tr><td>DC/90</td><td>Defensive contributions per 90 minutes. Tackles, interceptions, clearances — relevant for defenders.</td></tr>
+              <tr><td>Pts/match</td><td>Actual FPL points per team game so far this season.</td></tr>
+            </tbody>
+          </table>
+          <p class="guide-note">Click any column header to sort by it.</p>
+        </section>
+
+        <section class="guide-section">
+          <h2>Filters</h2>
+          <table class="guide-table">
+            <thead><tr><th>Filter</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td>Horizon</td><td>How many upcoming gameweeks to use for fixture difficulty. Higher = longer-term view.</td></tr>
+              <tr>
+                <td>Timeframe</td>
+                <td>
+                  <strong>Season to date</strong> — uses all data from this season. Most reliable.<br>
+                  <strong>Last 4 GWs</strong> — recent form only. Useful for hot players.<br>
+                  <strong>Last 2 GWs</strong> — very recent only. Small sample — use with caution.
+                </td>
+              </tr>
+              <tr><td>Hide unavailable</td><td>Hides injured and suspended players. Leave this on unless you are checking on a player's return date.</td></tr>
+              <tr><td>Min minutes</td><td>Hides players unlikely to start. Set to 60 or 70 to see only regular starters.</td></tr>
+              <tr><td>Max price</td><td>Hides players above your budget cap.</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="guide-section">
+          <h2>Adjustable weights</h2>
+          <p>The six sliders control what the Score column cares about. Each slider shows its share of the total as a percentage. All percentages always add up to 100%.</p>
+          <table class="guide-table">
+            <thead><tr><th>Slider</th><th>What it measures</th></tr></thead>
+            <tbody>
+              <tr><td>Attack</td><td>Expected goals and assists per 90 minutes.</td></tr>
+              <tr><td>Defence</td><td>Clean sheet probability and defensive contributions.</td></tr>
+              <tr><td>Minutes</td><td>How likely the player is to play most of a game.</td></tr>
+              <tr><td>Fixtures</td><td>How easy the upcoming games are.</td></tr>
+              <tr><td>Form</td><td>Recent FPL points scored.</td></tr>
+              <tr><td>Set pieces</td><td>Whether the player takes penalties, free kicks, or corners.</td></tr>
+            </tbody>
+          </table>
+          <p>Click <strong>Reset weights</strong> to go back to the defaults for the current position.</p>
+          <div class="guide-callout">
+            <strong>Quick guide:</strong> For a reliable minutes-getter, raise <em>Minutes</em>. For a set-piece taker in a great run of fixtures, raise <em>Set pieces</em> and <em>Fixtures</em>. For a clean-sheet machine, raise <em>Defence</em>.
+          </div>
+        </section>
+
+        <section class="guide-section">
+          <h2>Badges</h2>
+          <table class="guide-table">
+            <thead><tr><th>Badge</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge out">OUT</span></td><td>Player is ruled out. No chance of playing.</td></tr>
+              <tr><td><span class="badge doubt">50%</span></td><td>Player is doubtful. The number is their official chance of playing.</td></tr>
+              <tr><td><span class="badge outlier">outlier</span></td><td>Player's xP is more than 3 standard deviations above average for the position. Double-check the numbers before trusting it — it may reflect unusual recent data.</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="guide-section">
+          <h2>Advanced: Shrinkage K</h2>
+          <p>You do not need to change this. The default of 400 is fine.</p>
+          <p>K controls how much the tool trusts players with few minutes. A higher K pulls their estimated rates closer to the positional average — making the tool more sceptical of small samples. A lower K trusts the small sample more.</p>
+          <p>Think of it as a "scepticism dial". Turn it up if you think early-season stats are misleading. Turn it down if you want to give a newly-arriving player the benefit of the doubt.</p>
+        </section>
+
+        <section class="guide-section">
+          <h2>How to pick a transfer</h2>
+          <p>A simple workflow:</p>
+          <ol class="guide-steps">
+            <li>Select the position tab for the player you want to replace.</li>
+            <li>Set <strong>Timeframe</strong> to Season to date and <strong>Horizon</strong> to 5 GWs.</li>
+            <li>Look at the top 10 by Score.</li>
+            <li>Cross-check <strong>xP/match</strong> and <strong>Pts/match</strong> — do they agree? If they disagree a lot, the player may be lucky or unlucky.</li>
+            <li>If you are on a budget, sort by <strong>xP per £m</strong> instead.</li>
+            <li>For the final pick, trust your judgement. The tool narrows the field — it does not decide for you.</li>
+          </ol>
+        </section>
+
+        <section class="guide-section guide-warning">
+          <h2>Honest limitations</h2>
+          <ul>
+            <li>The model has not been proven to beat simple alternatives. In early tests it tied with "sort by last season's points per game."</li>
+            <li>Early in the season, rankings are noisy. The banner at the top warns you. Wait until around gameweek 6 before trusting the scores.</li>
+            <li>Scores are percentile ranks, not points forecasts. A high score means a player ranks well — not that they will definitely score.</li>
+            <li>Data is only as fresh as the last pipeline run. The timestamp at the top shows when it was last updated.</li>
+          </ul>
+        </section>
+
+      </article>
+    </section>
+    <!-- ── END GUIDE ────────────────────────────────────────────── -->
+
   </main>
 
   <footer>

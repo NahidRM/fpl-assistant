@@ -20,6 +20,7 @@ const state = {
   minMinutes: 0,
   maxPrice: 15.0,
   sortKey: 'score',
+  showGuide: false,
 };
 
 const el = (id) => document.getElementById(id);
@@ -71,8 +72,27 @@ function visibleRows() {
 function render() {
   renderTabs(el('tabs'), POSITIONS, state.position, (position) => {
     state.position = position;
+    state.showGuide = false;   // clicking a position tab always returns to the board
     render();
   });
+
+  // Guide tab — renderTabs clears the nav so we append after it, only building once.
+  if (!el('tabs').querySelector('[data-guide]')) {
+    const btn = document.createElement('button');
+    btn.setAttribute('role', 'tab');
+    btn.dataset.guide = '';
+    btn.textContent = 'Guide';
+    btn.addEventListener('click', () => { state.showGuide = !state.showGuide; render(); });
+    el('tabs').appendChild(btn);
+  }
+  el('tabs').querySelector('[data-guide]').setAttribute('aria-selected', String(state.showGuide));
+
+  // Toggle board vs guide
+  el('controls').hidden = state.showGuide;
+  el('board').hidden    = state.showGuide;
+  el('guide-panel').hidden = !state.showGuide;
+  if (state.showGuide) return;
+
   renderWeights(el('weights'), state.weights[state.position], (key, value) => {
     state.weights[state.position][key] = value;
     render();
