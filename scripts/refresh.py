@@ -32,9 +32,18 @@ def load_snapshots(snapshots_dir):
 
 
 def _write_json(path, payload):
+    """Write JSON atomically: serialise to a temp file, then rename into place.
+
+    A plain open()+write() leaves a truncated, unparseable file if the process
+    dies mid-write (disk-full, SIGKILL, etc.).  os.replace() is atomic on POSIX
+    and on Windows (Python 3.3+), so the destination is always either the
+    previous complete version or the new complete version.
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as fh:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as fh:
         json.dump(payload, fh, separators=(",", ":"))
+    os.replace(tmp, path)
 
 
 def run(bootstrap, fixtures, *, data_dir="data", min_players=300, generated_at=None):

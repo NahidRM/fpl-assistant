@@ -62,3 +62,42 @@ def test_load_snapshots_reads_gameweek_files(tmp_path):
     (snapshots_dir / "gw3.json").write_text(json.dumps({"gameweek": 3, "players": {}}))
     (snapshots_dir / "notes.txt").write_text("ignore me")
     assert list(load_snapshots(str(snapshots_dir))) == [3]
+
+
+def test_write_is_atomic_so_crash_mid_write_does_not_corrupt_existing_file(tmp_path):
+    """Non-atomic write (open+write+close) leaves a truncated, unparseable file if the
+    process dies mid-write.  The fix is write-to-temp then os.replace, so the destination
+    file is either the old version or the complete new version — never a partial.
+
+    We test _write_json directly so the crash clearly targets the players.json write
+    rather than an earlier snapshot write.
+    """
+    import unittest.mock as mock
+    from scripts.refresh import _write_json
+
+    dest = tmp_path / "players.json"
+    good_content = '{"previous": "good run"}'
+    dest.write_text(good_content)
+
+    def crashing_dump(obj, fh, **kw):
+        fh.write('{"partial":true,')   # partial content, then die
+        raise OSError("simulated disk-full or process kill mid-write")
+
+    with mock.patch("scripts.refresh.json.dump", side_effect=crashing_dump):
+        try:
+            _write_json(str(dest), {"players": list(range(600))})
+        except (OSError, Exception):
+            pass
+
+    content = dest.read_text()
+    try:
+        json.loads(content)
+        parseable = True
+    except json.JSONDecodeError:
+        parseable = False
+
+    assert parseable and content == good_content, (
+        f"Crash mid-write left players.json in a bad state: {content[:80]!r}. "
+        "Fix: write to a temp file then os.replace() so the destination is "
+        "always the old complete version or the new complete version."
+    )
