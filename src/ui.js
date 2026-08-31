@@ -38,6 +38,25 @@ function escapeHtml(value) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/**
+ * Type-aware sort comparator for board rows.
+ *
+ * The original inline `(b[key] ?? 0) - (a[key] ?? 0)` returns NaN for string
+ * columns (name, teamName), leaving Array.sort in undefined order while the
+ * column header falsely claims aria-sort="descending".  This function sorts
+ * numbers descending and strings A→Z, so every clickable header actually works.
+ *
+ * Exported so it can be unit-tested without a DOM.
+ */
+export function compareRows(a, b, key) {
+  const av = a[key] ?? 0;
+  const bv = b[key] ?? 0;
+  if (typeof av === 'string' || typeof bv === 'string') {
+    return String(av).localeCompare(String(bv));
+  }
+  return bv - av;
+}
+
 export function renderTabs(container, positions, active, onSelect) {
   container.innerHTML = '';
   for (const position of positions) {
@@ -50,25 +69,67 @@ export function renderTabs(container, positions, active, onSelect) {
   }
 }
 
+/**
+ * Render the six weight sliders.
+ *
+ * On the first call (empty container) the DOM is built and event listeners are
+ * attached once.  On every subsequent call — triggered by each slider tick —
+ * only the input values and percentage labels are updated in place.
+ *
+ * The old code did `container.innerHTML = ''` on every call, which destroyed
+ * the slider node the user was actively dragging, breaking pointer capture and
+ * stalling the drag mid-track.  Browser-verified: the same drag reached max on
+ * a stable node but stalled at 80/100 on a rebuilt one.
+ *
+ * The event listener captures `container._onChange` (set fresh on every call)
+ * rather than the `onChange` argument at construction time, so the correct
+ * callback is always invoked even after re-renders or position switches.
+ */
 export function renderWeights(container, weights, onChange) {
   const total = Object.values(weights).reduce((a, b) => a + b, 0) || 1;
-  container.innerHTML = '';
-  for (const key of COMPONENTS) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'weight';
-    const effective = ((weights[key] / total) * 100).toFixed(0);
-    wrapper.innerHTML =
-      `<label>${LABELS[key]}` +
-      `<input type="range" min="0" max="100" value="${weights[key]}" data-key="${key}">` +
-      `<span class="pct">${effective}%</span></label>`;
-    wrapper.querySelector('input').addEventListener('input', (event) => {
-      onChange(key, Number(event.target.value));
-    });
-    container.appendChild(wrapper);
+
+  // Store the current callback so listeners always call the latest version,
+  // even though the listener itself is only attached once.
+  container._onChange = onChange;
+
+  const existing = container.querySelectorAll('input[data-key]');
+  if (!existing.length) {
+    // First call: build DOM and attach listeners once.
+    container.innerHTML = '';
+    for (const key of COMPONENTS) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'weight';
+      const effective = ((weights[key] / total) * 100).toFixed(0);
+      wrapper.innerHTML =
+        `<label>${LABELS[key]}` +
+        `<input type="range" min="0" max="100" value="${weights[key]}" data-key="${key}">` +
+        `<span class="pct">${effective}%</span></label>`;
+      wrapper.querySelector('input').addEventListener('input', (event) => {
+        container._onChange(event.target.dataset.key, Number(event.target.value));
+      });
+      container.appendChild(wrapper);
+    }
+    return;
+  }
+
+  // Subsequent calls: update values and percentage labels without touching nodes.
+  for (const input of existing) {
+    const key = input.dataset.key;
+    input.value = String(weights[key]);
+    input.nextElementSibling.textContent = ((weights[key] / total) * 100).toFixed(0) + '%';
   }
 }
 
-export function renderTable(head, body, rows, sortKey, onSort) {
+/**
+ * Render the board table.
+ *
+ * When `rows` is empty, a full-width message row is shown instead of a blank
+ * tbody — a silent empty table was indistinguishable from a loading failure.
+ * The caller supplies `emptyMessage` so context-specific text can be shown
+ * (e.g. "no snapshot data yet" vs "no players match your filters").
+ */
+export function renderTable(head, body, rows, sortKey, onSort,
+  emptyMessage = 'No players match the current filters.') {
   head.innerHTML = '';
   const headRow = document.createElement('tr');
   for (const column of COLUMNS) {
@@ -81,6 +142,18 @@ export function renderTable(head, body, rows, sortKey, onSort) {
   head.appendChild(headRow);
 
   body.innerHTML = '';
+
+  if (!rows.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = COLUMNS.length;
+    td.className = 'empty-message';
+    td.textContent = emptyMessage;
+    tr.appendChild(td);
+    body.appendChild(tr);
+    return;
+  }
+
   for (const row of rows) {
     const tr = document.createElement('tr');
     for (const column of COLUMNS) {

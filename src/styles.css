@@ -39,3 +39,5 @@ footer { margin-top: 1.5rem; color: var(--muted); font-size: .8rem; }
   body { padding: 1rem; }
   table { display: block; overflow-x: auto; }
 }
+
+td.empty-message { padding: 2rem 1rem; text-align: center; color: var(--muted); font-style: italic; }

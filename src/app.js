@@ -1,6 +1,6 @@
 import { GK, DEF, MID, FWD, DEFAULT_WEIGHTS, DEFAULT_HORIZON, FIXTURE_HORIZONS, SHRINK_K } from './config.js';
 import { buildBoard } from './board.js';
-import { renderBanner, renderTabs, renderTable, renderWeights } from './ui.js';
+import { compareRows, renderBanner, renderTabs, renderTable, renderWeights } from './ui.js';
 
 const POSITIONS = [GK, DEF, MID, FWD];
 const TIMEFRAMES = [
@@ -65,7 +65,7 @@ function visibleRows() {
       if (state.timeframe !== 'season' && !row[state.timeframe]) return false;
       return true;
     })
-    .sort((a, b) => (b[state.sortKey] ?? 0) - (a[state.sortKey] ?? 0));
+    .sort((a, b) => compareRows(a, b, state.sortKey));
 }
 
 function render() {
@@ -77,10 +77,17 @@ function render() {
     state.weights[state.position][key] = value;
     render();
   });
+  // Produce a context-specific message when the table is empty so the user is
+  // never looking at a blank page with no explanation.
+  const TIMEFRAME_LABELS = { last4: 'Last 4 GWs', last2: 'Last 2 GWs' };
+  const emptyMessage = state.timeframe !== 'season'
+    ? `No ${TIMEFRAME_LABELS[state.timeframe]} data yet — the pipeline needs two runs to generate window snapshots.`
+    : 'No players match the current filters.';
+
   renderTable(el('board-head'), el('board-body'), visibleRows(), state.sortKey, (key) => {
     state.sortKey = key;
     render();
-  });
+  }, emptyMessage);
   el('footer-note').textContent =
     'Scores are percentiles within position, so they are not comparable across tabs. ' +
     'This model has not been shown to predict better than simple heuristics — see the README.';
