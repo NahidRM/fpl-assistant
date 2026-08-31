@@ -18,6 +18,9 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install pytest
+        run: pip install pytest
+
       - name: Run pytest
         run: python3 -m pytest -q
 
