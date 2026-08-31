@@ -97,23 +97,29 @@ def test_window_span_is_clamped_to_zero_not_negative():
 # --- survivor 7: window baseline picks latest snapshot AT OR BEFORE the target GW ---
 # target = current_gameweek - window_size.  The baseline must be the most recent
 # snapshot whose gameweek <= target — not just the most recent snapshot overall.
-# Without the `gw <= target` filter, a snapshot at GW4 could be used as the baseline
-# for a GW3-window computation, giving a negative or zero delta.
-def test_window_uses_latest_snapshot_at_or_before_target_not_just_latest():
-    """With GWs 3 and 5 in history and current=7, a 2-GW window targets GW5.
-    The baseline should be GW5, not GW3 (the oldest), giving the 2-GW delta."""
-    current = _snapshot(7, {"1": {"minutes": 630, "total_points": 42, "bonus": 9, "team": 1}},
-                        team_matches={"1": 7})
+# The original test had GW3 and GW5 with target=5: GW5 is both <=target AND the newest,
+# so the mutant and the correct code agreed.  To expose the bug we need a snapshot
+# AFTER the target (GW7 in history when target=6) — the mutant uses it, the correct
+# code skips it and falls back to GW4.
+def test_window_baseline_is_not_taken_from_past_the_target_gameweek():
+    """current=GW8, window=2 → target=6.  History has GW4 (before target) and GW7 (after).
+    The correct baseline is GW4 (latest at-or-before target=6).
+    The mutant picks GW7 (latest overall), giving a 1-match delta instead of 4.
+    """
+    current = _snapshot(8, {"1": {"minutes": 720, "total_points": 48, "bonus": 10, "team": 1}},
+                        team_matches={"1": 8})
     history = {
-        3: _snapshot(3, {"1": {"minutes": 270, "total_points": 18, "bonus": 3, "team": 1}},
-                    team_matches={"1": 3}),
-        5: _snapshot(5, {"1": {"minutes": 450, "total_points": 30, "bonus": 6, "team": 1}},
-                    team_matches={"1": 5}),
+        4: _snapshot(4, {"1": {"minutes": 360, "total_points": 24, "bonus": 5, "team": 1}},
+                    team_matches={"1": 4}),
+        7: _snapshot(7, {"1": {"minutes": 630, "total_points": 42, "bonus": 9, "team": 1}},
+                    team_matches={"1": 7}),  # GW7 > target(6); must NOT be used as baseline
     }
-    out = compute_window(current, history, 2)  # target = 7 - 2 = 5 → baseline = GW5
-    # Correct: 630-450=180 minutes, 42-30=12 points, 9-6=3 bonus, 7-5=2 matches.
-    assert out["1"]["minutes"] == 180, (
-        f"2-GW window from GW7 should use GW5 as baseline, giving 180 mins delta. "
-        f"Got {out['1']['minutes']} (GW3 would give 360, wrong baseline)."
+    out = compute_window(current, history, 2)  # target = 8 - 2 = 6
+    assert out["1"]["minutes"] == 360, (
+        f"2-GW window from GW8 (target=6) should use GW4 as baseline, giving 360 mins. "
+        f"Got {out['1']['minutes']}. If 90, GW7 was used (mutant: no <= target filter)."
     )
-    assert out["1"]["matches"] == 2
+    assert out["1"]["matches"] == 4, (
+        f"GW4→GW8 = 4 matches. Got {out['1']['matches']}. "
+        "GW7→GW8 = 1 match would indicate the baseline filter is missing."
+    )

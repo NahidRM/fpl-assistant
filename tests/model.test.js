@@ -166,27 +166,17 @@ test('defenceQuality applies CS_CALIBRATION — removing it changes the result b
 
 // --- survivor 3: conceded penalty sign ---
 // The existing test only checks that tight > leaky for defenders (direction).
-// Flipping the sign of the conceded term makes high xgc90 *add* points instead
-// of subtracting — but the direction tight > leaky still holds because the
-// clean-sheet term dominates.  Pin the sign explicitly.
-test('defenceQuality conceded deduction is negative for defenders — higher xgc means lower quality', () => {
-  // Hold everything constant, vary only xgc90.
-  // The delta between xgc90=0 and xgc90=1 must come from clean sheet AND conceded.
-  // With correct sign: delta = (exp(0)-exp(-0.93))*cs_pts - (1/2 - 0)/2  (both terms reduce quality)
-  // With flipped sign: delta = same clean-sheet drop PLUS a +0.5 "bonus" for conceding more.
-  const base = defenceQuality({ xg90: 0, xa90: 0, xgc90: 0,   dc90: 0, saves90: 0 }, DEF2);
-  const one  = defenceQuality({ xg90: 0, xa90: 0, xgc90: 1.0, dc90: 0, saves90: 0 }, DEF2);
-  const two  = defenceQuality({ xg90: 0, xa90: 0, xgc90: 2.0, dc90: 0, saves90: 0 }, DEF2);
-  // The conceded penalty (xgc90/2) means each unit of xgc subtracts at least 0.5 pts
-  // beyond the clean-sheet drop.  So the second unit must subtract more than the first.
-  // With a flipped sign the second unit would ADD 0.5, making two > one in conceded penalty.
-  const drop1 = base - one;   // quality drop from 0 to 1 xgc90
-  const drop2 = one - two;    // quality drop from 1 to 2 xgc90
-  assert.ok(drop1 > 0, 'increasing xgc90 from 0→1 must reduce defender quality');
-  assert.ok(drop2 > 0, 'increasing xgc90 from 1→2 must further reduce defender quality');
-  // With the correct sign both drops include the conceded penalty (0.5 pts per unit).
-  // With a flipped sign, the second drop is smaller because the clean-sheet effect
-  // diminishes while the "bonus" from conceding grows.  Pin: drop2 >= 0.4.
-  assert.ok(drop2 >= 0.4,
-    `Each extra goal conceded should reduce quality by ≥0.4 (clean sheet + penalty). Got ${drop2.toFixed(4)}`);
+// Flipping the sign (conceded = +xgc/2 instead of -xgc/2) keeps quality decreasing
+// with xgc because the CS term dominates — the direction tests pass either way.
+// The unambiguous test: at very high xgc90 (4.0) the correct formula makes total
+// quality NEGATIVE (conceded penalty -2.0 overwhelms the tiny CS term ~0.10),
+// while the flipped formula gives +2.1.  Negative quality is the correct,
+// physically-meaningful output: a leaky team destroys defensive value.
+test('defenceQuality is negative for extremely leaky defenders — conceded sign must be negative', () => {
+  // DEF, xgc90=4: CS = exp(-4*0.93)*4 ≈ 0.097, conceded [correct] = -2.0.
+  // Total [correct] ≈ -1.90.  Total [flipped] ≈ +2.10.
+  const result = defenceQuality({ xg90: 0, xa90: 0, xgc90: 4.0, dc90: 0, saves90: 0 }, DEF2);
+  assert.ok(result < 0,
+    `defenceQuality at xgc90=4 should be negative (CS ≈ 0.10, conceded penalty = -2.0). ` +
+    `Got ${result.toFixed(4)}. If positive, the conceded sign is flipped.`);
 });
