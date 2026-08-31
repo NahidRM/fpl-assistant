@@ -44,13 +44,17 @@ are independent.
 
 `type: module` is required for ES module imports in tests. There are no dependencies.
 
+The test script uses bare `node --test` auto-discovery. Do **not** write `node --test tests/`:
+Node 25 no longer expands a directory argument and tries to load `tests` as a module file,
+which fails before it reaches any test.
+
 ```json
 {
   "name": "fpl-assistant",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/"
+    "test": "node --test"
   }
 }
 ```

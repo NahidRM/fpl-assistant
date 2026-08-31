@@ -50,14 +50,18 @@ This is the interface between Plan 1 and Plan 2. Plan 2 depends on these exact k
     "xg90": 0.5, "xa90": 0.3, "xgi90": 0.8,
     "xgc90": 1.2, "dc90": 3.0, "saves90": 0.0,
     "penalties_order": 1, "direct_freekicks_order": null, "corners_order": null,
-    "last2": {"minutes": 180, "points": 15, "bonus": 3, "gameweeks": 2},
+    "last2": {"minutes": 180, "points": 15, "bonus": 3, "matches": 2},
     "last4": null
   }]
 }
 ```
 
-`last2` / `last4` are `null` when insufficient snapshot history exists. `gameweeks` reports the
-*true* span, which may exceed the requested window if a refresh was skipped (spec §5 step 2).
+`last2` / `last4` are `null` when insufficient snapshot history exists. `matches` reports the
+number of matches **that player's team** actually played between the baseline snapshot and now.
+
+It is deliberately per-team and counted in matches, not gameweeks. Measured on live data: with
+one GW2 fixture outstanding, 18 of 20 teams had played 2 matches while the snapshot label was
+still `gw1`. A single global span would have been wrong for 18 teams out of 20.
 
 ---
 
@@ -603,8 +607,13 @@ Create `scripts/tests/test_snapshot.py`:
 from scripts.snapshot import build_snapshot, compute_window
 
 
-def _snapshot(gameweek, players):
-    return {"gameweek": gameweek, "data_checked": True, "players": players}
+def _snapshot(gameweek, players, team_matches=None):
+    return {
+        "gameweek": gameweek,
+        "data_checked": True,
+        "team_matches_played": team_matches or {"1": gameweek or 0},
+        "players": players,
+    }
 
 
 def test_build_snapshot_records_cumulative_totals(bootstrap, fixtures):
@@ -616,21 +625,44 @@ def test_build_snapshot_records_cumulative_totals(bootstrap, fixtures):
         "minutes": first["minutes"],
         "total_points": first["total_points"],
         "bonus": first["bonus"],
+        "team": first["team"],
     }
 
 
+def test_build_snapshot_records_per_team_match_counts(bootstrap, fixtures):
+    snap = build_snapshot(bootstrap, fixtures)
+    assert snap["team_matches_played"], "needed to compute a per-team span"
+    assert all(isinstance(v, int) for v in snap["team_matches_played"].values())
+
+
 def test_window_delta_subtracts_baseline():
-    current = _snapshot(5, {"1": {"minutes": 450, "total_points": 30, "bonus": 6}})
-    history = {3: _snapshot(3, {"1": {"minutes": 270, "total_points": 18, "bonus": 4}})}
+    current = _snapshot(5, {"1": {"minutes": 450, "total_points": 30, "bonus": 6, "team": 1}})
+    history = {3: _snapshot(3, {"1": {"minutes": 270, "total_points": 18, "bonus": 4, "team": 1}})}
     out = compute_window(current, history, 2)
-    assert out["1"] == {"minutes": 180, "points": 12, "bonus": 2, "gameweeks": 2}
+    assert out["1"] == {"minutes": 180, "points": 12, "bonus": 2, "matches": 2}
 
 
 def test_window_reports_true_span_when_a_refresh_was_skipped():
-    current = _snapshot(6, {"1": {"minutes": 540, "total_points": 36, "bonus": 8}})
-    history = {2: _snapshot(2, {"1": {"minutes": 180, "total_points": 12, "bonus": 2}})}
+    current = _snapshot(6, {"1": {"minutes": 540, "total_points": 36, "bonus": 8, "team": 1}})
+    history = {2: _snapshot(2, {"1": {"minutes": 180, "total_points": 12, "bonus": 2, "team": 1}})}
     out = compute_window(current, history, 2)
-    assert out["1"]["gameweeks"] == 4, "must report the real span, not the requested one"
+    assert out["1"]["matches"] == 4, "must report the real span, not the requested one"
+
+
+def test_span_is_per_team_not_global():
+    # Measured on live data: with one fixture outstanding, 18 of 20 teams had played
+    # 2 matches while the snapshot label was still gw1. A global span is wrong for them.
+    current = _snapshot(3, {
+        "1": {"minutes": 270, "total_points": 18, "bonus": 3, "team": 1},
+        "2": {"minutes": 180, "total_points": 12, "bonus": 2, "team": 2},
+    }, team_matches={"1": 3, "2": 2})
+    history = {1: _snapshot(1, {
+        "1": {"minutes": 90, "total_points": 6, "bonus": 1, "team": 1},
+        "2": {"minutes": 90, "total_points": 6, "bonus": 1, "team": 2},
+    }, team_matches={"1": 1, "2": 1})}
+    out = compute_window(current, history, 2)
+    assert out["1"]["matches"] == 2
+    assert out["2"]["matches"] == 1, "team 2 played one fewer match in the same span"
 
 
 def test_window_returns_empty_without_enough_history():
@@ -639,14 +671,14 @@ def test_window_returns_empty_without_enough_history():
 
 
 def test_player_absent_from_baseline_treated_as_zero():
-    current = _snapshot(4, {"9": {"minutes": 90, "total_points": 7, "bonus": 1}})
-    history = {2: _snapshot(2, {})}
+    current = _snapshot(4, {"9": {"minutes": 90, "total_points": 7, "bonus": 1, "team": 1}})
+    history = {2: _snapshot(2, {}, team_matches={"1": 2})}
     out = compute_window(current, history, 2)
-    assert out["9"] == {"minutes": 90, "points": 7, "bonus": 1, "gameweeks": 2}
+    assert out["9"] == {"minutes": 90, "points": 7, "bonus": 1, "matches": 2}
 
 
 def test_window_is_none_safe_when_current_gameweek_unknown():
-    current = _snapshot(None, {"1": {"minutes": 0, "total_points": 0, "bonus": 0}})
+    current = _snapshot(None, {"1": {"minutes": 0, "total_points": 0, "bonus": 0, "team": 1}})
     assert compute_window(current, {1: _snapshot(1, {})}, 2) == {}
 ```
 
@@ -661,7 +693,7 @@ Create `scripts/snapshot.py`:
 
 ```python
 """Per-gameweek snapshots and the window deltas derived from them. Pure functions."""
-from scripts.transform import last_complete_gameweek
+from scripts.transform import last_complete_gameweek, team_matches_played
 
 ZERO = {"minutes": 0, "total_points": 0, "bonus": 0}
 
@@ -676,11 +708,13 @@ def build_snapshot(bootstrap, fixtures):
         "gameweek": gameweek,
         "data_checked": bool(current_event.get("data_checked")),
         "events_finished": sum(1 for e in bootstrap.get("events", []) if e.get("finished")),
+        "team_matches_played": {str(k): v for k, v in team_matches_played(fixtures).items()},
         "players": {
             str(element["id"]): {
                 "minutes": element["minutes"],
                 "total_points": element["total_points"],
                 "bonus": element["bonus"],
+                "team": element["team"],
             }
             for element in bootstrap["elements"]
         },
@@ -691,8 +725,12 @@ def compute_window(current, history, gameweeks):
     """Per-player totals over the trailing `gameweeks` window.
 
     `history` maps gameweek number to a previously written snapshot. Returns {} when no
-    suitable baseline exists. The reported `gameweeks` is the true span between the
-    baseline and now, which exceeds the request if a refresh was skipped (spec section 5).
+    suitable baseline exists.
+
+    `matches` is the number of matches *that player's team* played between the baseline and
+    now. It is per-team on purpose: measured on live data, one outstanding fixture left 18 of
+    20 teams on 2 matches while the snapshot label was still gw1, so a single global span
+    would have been wrong for 18 of them.
     """
     current_gameweek = current.get("gameweek")
     if current_gameweek is None:
@@ -703,18 +741,21 @@ def compute_window(current, history, gameweeks):
     if not candidates:
         return {}
 
-    baseline_gameweek = candidates[-1]
-    baseline = history[baseline_gameweek]["players"]
-    span = current_gameweek - baseline_gameweek
+    baseline = history[candidates[-1]]
+    baseline_players = baseline["players"]
+    baseline_matches = baseline.get("team_matches_played", {})
+    current_matches = current.get("team_matches_played", {})
 
     out = {}
     for player_id, totals in current["players"].items():
-        before = baseline.get(player_id, ZERO)
+        before = baseline_players.get(player_id, ZERO)
+        team = str(totals.get("team", before.get("team", "")))
+        span = int(current_matches.get(team, 0)) - int(baseline_matches.get(team, 0))
         out[player_id] = {
             "minutes": totals["minutes"] - before["minutes"],
             "points": totals["total_points"] - before["total_points"],
             "bonus": totals["bonus"] - before["bonus"],
-            "gameweeks": span,
+            "matches": max(span, 0),
         }
     return out
 ```
@@ -722,7 +763,7 @@ def compute_window(current, history, gameweeks):
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `python3 -m pytest scripts/tests/test_snapshot.py -v`
-Expected: PASS, 6 passed
+Expected: PASS, 7 passed
 
 - [ ] **Step 5: Commit**
 
@@ -1024,7 +1065,7 @@ Expected: PASS, 5 passed
 - [ ] **Step 5: Run the full suite**
 
 Run: `python3 -m pytest -v`
-Expected: PASS, 33 passed
+Expected: PASS, 34 passed
 
 - [ ] **Step 6: Run the pipeline against the live API**
 
@@ -1170,7 +1211,7 @@ git commit -m "docs: add README with honest limitations section"
 
 ## Done when
 
-- [ ] `python3 -m pytest` passes with 33 tests
+- [ ] `python3 -m pytest` passes with 34 tests
 - [ ] `python3 scripts/refresh.py` writes `data/players.json` and `data/snapshots/gw{N}.json`
 - [ ] `data/players.json` matches the contract at the top of this plan
 - [ ] The Action runs green from the Actions tab and commits refreshed data
